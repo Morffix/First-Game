@@ -1,173 +1,141 @@
-// Основной рендер
-window.renderGame = function(gameEngine) {
-    const app = document.getElementById('app');
-    
-    switch(gameEngine.currentScreen) {
-        case 'welcome':
-            app.innerHTML = renderWelcomeScreen();
-            break;
-        case 'specialization':
-            app.innerHTML = renderSpecializationScreen();
-            break;
-        case 'stage1':
-            app.innerHTML = renderStageScreen(gameEngine);
-            break;
-        case 'task_result':
-            app.innerHTML = renderTaskResult(gameEngine);
-            break;
+console.log("🎮 App.js started!");
+
+let tg = window.Telegram.WebApp;
+let game = null;
+
+// Инициализация Telegram
+function initTelegram() {
+    try {
+        tg.expand();
+        tg.ready();
+        console.log("✅ Telegram initialized");
+    } catch (e) {
+        console.error("❌ Telegram init error:", e);
     }
 }
 
-// Экран задания
-function renderStageScreen(gameEngine) {
-    const task = gameEngine.getCurrentTask();
-    const progress = gameEngine.getProgress();
-    
-    if (!task) {
-        return renderStageComplete(gameEngine);
+// Простой движок для теста
+class SimpleGame {
+    constructor() {
+        this.currentScreen = 'welcome';
+        this.specialization = null;
+        console.log("🎲 SimpleGame created");
     }
 
-    let taskHTML = '';
-    
-    // Разные типы заданий
-    switch(task.type) {
-        case 'multiple_choice':
-            taskHTML = renderMultipleChoiceTask(task);
-            break;
-        case 'calculation':
-        case 'conceptual':
-        case 'analysis':
-        case 'text':
-            taskHTML = renderTextInputTask(task);
-            break;
+    chooseSpecialization(spec) {
+        console.log("🎯 Choosing specialization:", spec);
+        this.specialization = spec;
+        this.currentScreen = 'stage1';
+        this.render();
+        return true;
     }
 
-    return `
-        <div class="screen stage-screen">
-            <div class="stage-header">
-                <div class="rank-badge">${gameEngine.rank}</div>
-                <div class="score">Очки: ${gameEngine.score}</div>
-            </div>
-            
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: ${progress.percent}%"></div>
-                <span class="progress-text">${progress.completed}/${progress.total}</span>
-            </div>
+    render() {
+        console.log("🔄 Rendering screen:", this.currentScreen);
+        const app = document.getElementById('app');
+        
+        if (!app) {
+            console.error("❌ App element not found!");
+            return;
+        }
 
-            <div class="task-card">
-                <div class="task-meta">
-                    <span class="difficulty ${task.difficulty}">${getDifficultyText(task.difficulty)}</span>
-                    <span class="specialization">${getSpecializationText(gameEngine.specialization)}</span>
+        switch(this.currentScreen) {
+            case 'welcome':
+                app.innerHTML = this.renderWelcome();
+                break;
+            case 'specialization':
+                app.innerHTML = this.renderSpecialization();
+                break;
+            case 'stage1':
+                app.innerHTML = this.renderStage1();
+                break;
+        }
+    }
+
+    renderWelcome() {
+        return `
+            <div class="screen welcome-screen">
+                <h1>🎯 ДЕБАГ РЕЖИМ</h1>
+                <p>Если видишь этот текст - базовая загрузка работает!</p>
+                <button onclick="game.showScreen('specialization')" class="btn-primary">
+                    Тест перехода
+                </button>
+                <div style="margin-top: 20px; padding: 10px; background: #ff4444; color: white;">
+                    <strong>Открой консоль разработчика (F12) и посмотри логи!</strong>
                 </div>
-                
-                <h2 class="task-question">${task.question}</h2>
-                
-                ${taskHTML}
             </div>
-        </div>
-    `;
-}
+        `;
+    }
 
-// Рендер вариантов ответа
-function renderMultipleChoiceTask(task) {
-    const options = task.options.map((option, index) => `
-        <button class="option-btn" onclick="handleAnswer('${option}')">
-            ${option}
-        </button>
-    `).join('');
-
-    return `<div class="options-container">${options}</div>`;
-}
-
-// Рендер поля для ввода
-function renderTextInputTask(task) {
-    return `
-        <div class="input-container">
-            <input type="text" id="answer-input" placeholder="Введите ваш ответ..." class="answer-input">
-            <button onclick="handleAnswerFromInput()" class="submit-btn">Ответить</button>
-        </div>
-    `;
-}
-
-// Экран результата задания
-function renderTaskResult(gameEngine) {
-    const lastResult = gameEngine.lastResult;
-    const task = gameEngine.getCurrentTask();
-    
-    return `
-        <div class="screen result-screen">
-            <div class="result-card ${lastResult.correct ? 'correct' : 'incorrect'}">
-                <h2>${lastResult.correct ? '✅ Правильно!' : '❌ Неправильно'}</h2>
-                
-                ${lastResult.solution ? `
-                    <div class="solution">
-                        <h3>Решение:</h3>
-                        <p>${lastResult.solution}</p>
+    renderSpecialization() {
+        return `
+            <div class="screen specialization-screen">
+                <h2>Выбери специализацию (Тест)</h2>
+                <div class="specialization-cards">
+                    <div class="spec-card" onclick="testClick('physicist')">
+                        <h3>🧮 Физик-теоретик</h3>
+                        <p>Кликни сюда и проверь консоль</p>
                     </div>
-                ` : ''}
-                
-                ${lastResult.leveledUp ? `
-                    <div class="level-up">
-                        <h3>🎉 Повышение звания!</h3>
-                        <p>${lastResult.oldRank} → ${lastResult.newRank}</p>
+                    <div class="spec-card" onclick="testClick('engineer')">
+                        <h3>🔧 Кибер-инженер</h3>
+                        <p>Должен появиться лог в консоли</p>
                     </div>
-                ` : ''}
-                
-                <button class="next-btn" onclick="handleNextTask()">
-                    ${gameEngine.nextTask() ? 'Следующее задание' : 'Завершить этап'}
+                </div>
+                <div id="debug-output" style="margin-top: 20px; padding: 10px; background: #333; color: #0f0;"></div>
+            </div>
+        `;
+    }
+
+    renderStage1() {
+        return `
+            <div class="screen stage-screen">
+                <h2>🎉 УСПЕХ!</h2>
+                <p>Ты выбрал: ${this.specialization}</p>
+                <p>Навигация работает!</p>
+                <button onclick="game.showScreen('welcome')" class="btn-primary">
+                    Вернуться назад
                 </button>
             </div>
-        </div>
-    `;
-}
-
-// Обработчики ответов
-function handleAnswer(answer) {
-    const game = window.game;
-    const result = game.checkAnswer(answer);
-    game.lastResult = result;
-    game.currentScreen = 'task_result';
-    game.render();
-}
-
-function handleAnswerFromInput() {
-    const input = document.getElementById('answer-input');
-    const answer = input.value;
-    handleAnswer(answer);
-}
-
-function handleNextTask() {
-    const game = window.game;
-    if (game.nextTask()) {
-        game.currentScreen = 'stage1';
-    } else {
-        game.currentScreen = 'stage_complete';
+        `;
     }
-    game.render();
+
+    showScreen(screen) {
+        console.log("🔄 Changing screen to:", screen);
+        this.currentScreen = screen;
+        this.render();
+    }
 }
 
-// Вспомогательные функции
-function getDifficultyText(difficulty) {
-    const texts = {
-        easy: 'Легкая',
-        medium: 'Средняя', 
-        hard: 'Сложная'
-    };
-    return texts[difficulty] || difficulty;
+// Глобальная тестовая функция
+window.testClick = function(spec) {
+    console.log("🎯 testClick called with:", spec);
+    const debugOutput = document.getElementById('debug-output');
+    if (debugOutput) {
+        debugOutput.innerHTML = `Клик зарегистрирован: ${spec} | Время: ${new Date().toLocaleTimeString()}`;
+    }
+    
+    if (window.game && window.game.chooseSpecialization) {
+        window.game.chooseSpecialization(spec);
+    } else {
+        console.error("❌ Game not initialized!");
+        debugOutput.innerHTML += '<br>❌ Game object not found!';
+    }
 }
 
-function getSpecializationText(spec) {
-    const texts = {
-        physicist: 'Физик-теоретик',
-        engineer: 'Кибер-инженер',
-        operator: 'Оператор связи',
-        analyst: 'Аналитик данных'
-    };
-    return texts[spec] || spec;
-}
-
-// Запуск игры
+// Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', function() {
-    window.game = new GameEngine();
+    console.log("📄 DOM loaded!");
+    
+    initTelegram();
+    
+    // Создаём глобальную ссылку на игру
+    window.game = new SimpleGame();
+    console.log("🎲 Game instance created:", window.game);
+    
+    // Первый рендер
     window.game.render();
+    
+    // Проверяем элементы
+    const app = document.getElementById('app');
+    console.log("📱 App element:", app);
 });
