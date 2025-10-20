@@ -1,10 +1,3 @@
-let tg = window.Telegram.WebApp;
-let game = new GameEngine();
-
-// Инициализация Telegram
-tg.expand();
-tg.ready();
-
 // Основной рендер
 window.renderGame = function(gameEngine) {
     const app = document.getElementById('app');
@@ -17,61 +10,164 @@ window.renderGame = function(gameEngine) {
             app.innerHTML = renderSpecializationScreen();
             break;
         case 'stage1':
-            app.innerHTML = renderStage1Screen(gameEngine);
+            app.innerHTML = renderStageScreen(gameEngine);
+            break;
+        case 'task_result':
+            app.innerHTML = renderTaskResult(gameEngine);
             break;
     }
 }
 
-// Экран приветствия
-function renderWelcomeScreen() {
+// Экран задания
+function renderStageScreen(gameEngine) {
+    const task = gameEngine.getCurrentTask();
+    const progress = gameEngine.getProgress();
+    
+    if (!task) {
+        return renderStageComplete(gameEngine);
+    }
+
+    let taskHTML = '';
+    
+    // Разные типы заданий
+    switch(task.type) {
+        case 'multiple_choice':
+            taskHTML = renderMultipleChoiceTask(task);
+            break;
+        case 'calculation':
+        case 'conceptual':
+        case 'analysis':
+        case 'text':
+            taskHTML = renderTextInputTask(task);
+            break;
+    }
+
     return `
-        <div class="screen welcome-screen">
-            <div class="academy-logo">🛰️</div>
-            <h1>КиберШтаб</h1>
-            <p>Академия имени Можайского</p>
-            <div class="welcome-text">
-                <p>Абитуриент! Военно-космическая академия проводит набор в спецподразделение "КиберШтаб".</p>
-                <p>Тебе предстоит пройти испытания и доказать свои знания в физике и кибернетике.</p>
+        <div class="screen stage-screen">
+            <div class="stage-header">
+                <div class="rank-badge">${gameEngine.rank}</div>
+                <div class="score">Очки: ${gameEngine.score}</div>
             </div>
-            <button class="btn-primary" onclick="game.showScreen('specialization')">
-                Начать испытания
-            </button>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${progress.percent}%"></div>
+                <span class="progress-text">${progress.completed}/${progress.total}</span>
+            </div>
+
+            <div class="task-card">
+                <div class="task-meta">
+                    <span class="difficulty ${task.difficulty}">${getDifficultyText(task.difficulty)}</span>
+                    <span class="specialization">${getSpecializationText(gameEngine.specialization)}</span>
+                </div>
+                
+                <h2 class="task-question">${task.question}</h2>
+                
+                ${taskHTML}
+            </div>
         </div>
     `;
 }
 
-// Экран выбора специализации
-function renderSpecializationScreen() {
+// Рендер вариантов ответа
+function renderMultipleChoiceTask(task) {
+    const options = task.options.map((option, index) => `
+        <button class="option-btn" onclick="handleAnswer('${option}')">
+            ${option}
+        </button>
+    `).join('');
+
+    return `<div class="options-container">${options}</div>`;
+}
+
+// Рендер поля для ввода
+function renderTextInputTask(task) {
     return `
-        <div class="screen specialization-screen">
-            <h2>Выбери специализацию</h2>
-            
-            <div class="specialization-cards">
-                <div class="spec-card" onclick="game.chooseSpecialization('physicist')">
-                    <h3>🧮 Физик-теоретик</h3>
-                    <p>Расчеты, анализ, фундаментальные законы</p>
-                </div>
+        <div class="input-container">
+            <input type="text" id="answer-input" placeholder="Введите ваш ответ..." class="answer-input">
+            <button onclick="handleAnswerFromInput()" class="submit-btn">Ответить</button>
+        </div>
+    `;
+}
+
+// Экран результата задания
+function renderTaskResult(gameEngine) {
+    const lastResult = gameEngine.lastResult;
+    const task = gameEngine.getCurrentTask();
+    
+    return `
+        <div class="screen result-screen">
+            <div class="result-card ${lastResult.correct ? 'correct' : 'incorrect'}">
+                <h2>${lastResult.correct ? '✅ Правильно!' : '❌ Неправильно'}</h2>
                 
-                <div class="spec-card" onclick="game.chooseSpecialization('engineer')">
-                    <h3>🔧 Кибер-инженер</h3>
-                    <p>Системы, алгоритмы, практическая реализация</p>
-                </div>
+                ${lastResult.solution ? `
+                    <div class="solution">
+                        <h3>Решение:</h3>
+                        <p>${lastResult.solution}</p>
+                    </div>
+                ` : ''}
                 
-                <div class="spec-card" onclick="game.chooseSpecialization('operator')">
-                    <h3>📡 Оператор связи</h3>
-                    <p>Сигналы, протоколы, коммуникации</p>
-                </div>
+                ${lastResult.leveledUp ? `
+                    <div class="level-up">
+                        <h3>🎉 Повышение звания!</h3>
+                        <p>${lastResult.oldRank} → ${lastResult.newRank}</p>
+                    </div>
+                ` : ''}
                 
-                <div class="spec-card" onclick="game.chooseSpecialization('analyst')">
-                    <h3>📊 Аналитик данных</h3>
-                    <p>Обработка, визуализация, прогнозирование</p>
-                </div>
+                <button class="next-btn" onclick="handleNextTask()">
+                    ${gameEngine.nextTask() ? 'Следующее задание' : 'Завершить этап'}
+                </button>
             </div>
         </div>
     `;
+}
+
+// Обработчики ответов
+function handleAnswer(answer) {
+    const game = window.game;
+    const result = game.checkAnswer(answer);
+    game.lastResult = result;
+    game.currentScreen = 'task_result';
+    game.render();
+}
+
+function handleAnswerFromInput() {
+    const input = document.getElementById('answer-input');
+    const answer = input.value;
+    handleAnswer(answer);
+}
+
+function handleNextTask() {
+    const game = window.game;
+    if (game.nextTask()) {
+        game.currentScreen = 'stage1';
+    } else {
+        game.currentScreen = 'stage_complete';
+    }
+    game.render();
+}
+
+// Вспомогательные функции
+function getDifficultyText(difficulty) {
+    const texts = {
+        easy: 'Легкая',
+        medium: 'Средняя', 
+        hard: 'Сложная'
+    };
+    return texts[difficulty] || difficulty;
+}
+
+function getSpecializationText(spec) {
+    const texts = {
+        physicist: 'Физик-теоретик',
+        engineer: 'Кибер-инженер',
+        operator: 'Оператор связи',
+        analyst: 'Аналитик данных'
+    };
+    return texts[spec] || spec;
 }
 
 // Запуск игры
 document.addEventListener('DOMContentLoaded', function() {
-    game.render();
+    window.game = new GameEngine();
+    window.game.render();
 });
